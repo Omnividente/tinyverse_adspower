@@ -563,7 +563,7 @@ class TelegramBotAutomation:
             resources_row = WebDriverWait(self.driver, 10).until(
                 EC.presence_of_element_located((
                     By.XPATH,
-                    "//div[contains(@class, 'details-row') and (.//i[text()='Ресурсы' or text()='Assests'])]"
+                    "//div[contains(@class, 'details-row') and (.//i[text()='Ресурсы' or text()='Assets'])]"
                 ))
             )
 
@@ -743,7 +743,7 @@ class TelegramBotAutomation:
 
     def create_stars(self):
         """
-        Процесс создания звезд с повторным открытием окна и проверкой дополнительной цены.
+        Процесс создания звезд с повторным открытием окна и проверкой баланса.
         """
         try:
             logger.info(
@@ -763,27 +763,51 @@ class TelegramBotAutomation:
                             (By.CSS_SELECTOR, "label.details.d-flex.justify-content-between"))
                     )
 
-                    # Основная цена
-                    main_price = price_block.find_element(
-                        By.CSS_SELECTOR, "span:nth-child(1)").text.strip()
-                    # Дополнительная цена
-                    additional_price_elements = price_block.find_elements(
-                        By.CSS_SELECTOR, "span:nth-child(3)")
-                    additional_price = additional_price_elements[0].text.strip(
-                    ) if additional_price_elements else None
+                    # Извлечение основного баланса
+                    main_balance_element = price_block.find_element(
+                        By.XPATH, ".//span[1]"
+                    )
+                    main_balance_text = main_balance_element.text.strip()
+                    main_balance = int(main_balance_text.replace(
+                        ",", "")) if main_balance_text.replace(",", "").isdigit() else 0
 
-                    if additional_price and additional_price.isdigit():
+                    # Извлечение дополнительного баланса
+                    additional_balance_element = price_block.find_elements(
+                        By.XPATH, ".//span[contains(text(), '+')]/following-sibling::span[1]"
+                    )
+                    additional_balance = int(additional_balance_element[0].text.strip().replace(
+                        ",", "")) if additional_balance_element else 0
+
+                    logger.debug(
+                        f"#{self.serial_number}: Extracted balances - Main: {main_balance}, Additional: {additional_balance}"
+                    )
+
+                    # Логика проверки
+                    if main_balance == 0:
                         logger.info(
-                            f"#{self.serial_number}: 'Create Stars' process stopped due to additional price ({additional_price}).")
+                            f"#{self.serial_number}: 'Create Stars' process stopped due to main balance being 0."
+                        )
                         # Закрываем окно
                         close_button = WebDriverWait(self.driver, 10).until(
                             EC.element_to_be_clickable(
                                 (By.CSS_SELECTOR, "div.content-footer a.ui-link.blur.close"))
                         )
                         close_button.click()
-                        break  # Завершаем процесс
+                        break
 
-                    # Нажимаем кнопку создания звезд
+                    if additional_balance > 0:
+                        logger.info(
+                            f"#{self.serial_number}: 'Create Stars' process stopped due to additional balance ({additional_balance})."
+                        )
+                        # Закрываем окно
+                        close_button = WebDriverWait(self.driver, 10).until(
+                            EC.element_to_be_clickable(
+                                (By.CSS_SELECTOR, "div.content-footer a.ui-link.blur.close"))
+                        )
+                        close_button.click()
+                        break
+
+                    # Если основная логика пройдена, создаем звезды
                     create_button = WebDriverWait(self.driver, 10).until(
                         EC.element_to_be_clickable(
                             (By.CSS_SELECTOR, "div.content-body .buttons-row button.ui-button"))
@@ -795,46 +819,26 @@ class TelegramBotAutomation:
                         EC.invisibility_of_element(
                             (By.CSS_SELECTOR, "div.content-body"))
                     )
+                    logger.info(
+                        f"#{self.serial_number}: Stars created successfully.")
+                    break
                 except TimeoutException:
                     logger.debug(
-                        f"#{self.serial_number}: Timeout during 'Create Stars' process. Retrying...")
+                        f"#{self.serial_number}: Timeout during 'Create Stars' process. Retrying..."
+                    )
                 except Exception as e:
                     logger.debug(
-                        f"#{self.serial_number}: Unexpected issue during 'Create Stars' process: {str(e)}. Retrying...")
+                        f"#{self.serial_number}: Unexpected issue during 'Create Stars' process: {str(e)}. Retrying..."
+                    )
                 finally:
-                    # Проверка попыток
                     if attempt == 4:
                         logger.info(
-                            f"#{self.serial_number}: Reached maximum attempts for 'Create Stars' process.")
-                        break
-            else:
-                logger.info(
-                    f"#{self.serial_number}: 'Create Stars' process completed successfully.")
-
+                            f"#{self.serial_number}: Reached maximum attempts for 'Create Stars' process."
+                        )
         except Exception as e:
             logger.error(
-                f"#{self.serial_number}: Error in 'Create Stars' process: {str(e)}", exc_info=False)
-
-    def check_additional_payment(self):
-        """
-        Проверяет, требуется ли дополнительная оплата за создание звезд.
-        Возвращает True, если дополнительная оплата есть, иначе False.
-        """
-        try:
-            logger.debug(
-                f"#{self.serial_number}: Checking for additional payment.")
-            additional_payment_element = WebDriverWait(self.driver, 3).until(
-                EC.presence_of_element_located(
-                    (By.XPATH, "//span[contains(text(), '+')]"))
+                f"#{self.serial_number}: Error in 'Create Stars' process: {str(e)}", exc_info=False
             )
-            additional_payment_text = additional_payment_element.text.strip()
-            logger.debug(
-                f"#{self.serial_number}: Additional payment text: '{additional_payment_text}'")
-            return bool(additional_payment_text)
-        except TimeoutException:
-            logger.debug(
-                f"#{self.serial_number}: No additional payment required.")
-            return False
 
     def switch_to_iframe(self):
         """
