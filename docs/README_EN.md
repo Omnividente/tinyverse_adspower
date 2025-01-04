@@ -2,11 +2,10 @@
 # Telegram Bot Automation for Tiny Verse
 
 
-![Example of bot usage](https://github.com/user-attachments/assets/47cb404e-f8f9-4833-bb70-f7d640c160d7)
+![image](https://github.com/user-attachments/assets/504ed64f-ad07-4d0b-8b4f-8b106ea8fcc4)
 
 ## Table of Contents
 - [Features](#features)
-- [Required Extension](#required-extension)
 - [Installation](#installation)
 - [Configuration](#configuration)
 - [Usage](#usage)
