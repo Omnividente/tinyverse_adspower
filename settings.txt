@@ -14,7 +14,7 @@ ACCOUNTS=
 ENABLE_QUESTS=true
 
 # URL репозитория для проверки обновлений
-REPOSITORY_URL=https://github.com/Omnividente/blum_adspower
+REPOSITORY_URL=https://github.com/Omnividente/tinyverse_adspower.git
 
 # Интервал проверки обновлений в секундах (по умолчанию 3 часа)
 UPDATE_INTERVAL=10800
