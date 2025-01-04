@@ -998,7 +998,9 @@ class TelegramBotAutomation:
                     try:
                         elki_igalki_button = WebDriverWait(self.driver, 4).until(
                             EC.element_to_be_clickable(
-                                (By.XPATH, "//a[contains(., 'Ёлки-иголки!')]"))
+                                (By.XPATH,
+                                 "//a[contains(., 'Ёлки-иголки!') or contains(., 'Collect needles')]")
+                            )
                         )
                         elki_igalki_button.click()
                         self.update_click_data(
