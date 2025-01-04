@@ -563,7 +563,7 @@ class TelegramBotAutomation:
             resources_row = WebDriverWait(self.driver, 10).until(
                 EC.presence_of_element_located((
                     By.XPATH,
-                    "//div[contains(@class, 'details-row') and (.//i[text()='Ресурсы' or text()='Resources'])]"
+                    "//div[contains(@class, 'details-row') and (.//i[text()='Ресурсы' or text()='Assests'])]"
                 ))
             )
 
