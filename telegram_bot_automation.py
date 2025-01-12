@@ -275,58 +275,110 @@ class TelegramBotAutomation:
                     'BOT_LINK', 'https://t.me/TVerse?startapp=galaxy-0005d5bdb20004615f720004f50b2f')
                 logger.debug(f"#{self.serial_number}: Bot link: {bot_link}")
 
-                # Поиск элемента ссылки
-                link = self.wait_for_element(
-                    By.CSS_SELECTOR, f"a[href*='{bot_link}']")
-                if link:
-                    logger.debug(
-                        f"#{self.serial_number}: Link found. Scrolling to the link.")
+                # Ожидание перед началом поиска
+                # Увеличенное ожидание перед первой проверкой
+                stop_event.wait(3)
 
-                    # Скроллинг к ссылке
-                    self.driver.execute_script(
-                        "arguments[0].scrollIntoView({ behavior: 'smooth', block: 'center' });", link)
-                    # Небольшая задержка для завершения скроллинга
-                    stop_event.wait(1)
+                scroll_attempts = 0
+                max_scrolls = 20  # Максимальное количество прокруток
 
-                    # Клик по ссылке
-                    link.click()
-                    logger.debug(
-                        f"#{self.serial_number}: Link clicked successfully.")
-                    stop_event.wait(2)
+                while scroll_attempts < max_scrolls:
+                    # Ожидаем появления всех ссылок, начинающихся с https://t.me
+                    try:
+                        links = WebDriverWait(self.driver, 5).until(
+                            lambda d: d.find_elements(By.CSS_SELECTOR, "a[href*='https://t.me']"))
+                    except TimeoutException:
+                        logger.warning(
+                            f"#{self.serial_number}: Links did not load in time.")
+                        break
 
-                # Поиск и клик по кнопке запуска
-                launch_button = self.wait_for_element(
-                    By.CSS_SELECTOR, "button.popup-button.btn.primary.rp", timeout=5)
-                if launch_button:
                     logger.debug(
-                        f"#{self.serial_number}: Launch button found. Clicking it.")
-                    launch_button.click()
-                    logger.debug(
-                        f"#{self.serial_number}: Launch button clicked.")
+                        f"#{self.serial_number}: Found {len(links)} links starting with 'https://t.me/'.")
 
-                # Проверка iframe
-                if self.check_iframe_src():
-                    logger.info(
-                        f"#{self.serial_number}: App loaded successfully.")
+                    # Прокручиваемся к каждой ссылке поочередно
+                    for link in links:
+                        href = link.get_attribute("href")
+                        if bot_link in href:
+                            logger.debug(
+                                f"#{self.serial_number}: Found matching link: {href}")
 
-                    # Случайная задержка перед переключением на iframe
-                    sleep_time = random.randint(3, 5)
-                    logger.debug(
-                        f"#{self.serial_number}: Sleeping for {sleep_time} seconds before switching to iframe.")
-                    stop_event.wait(sleep_time)
+                            # Скроллинг к нужной ссылке
+                            self.driver.execute_script(
+                                "arguments[0].scrollIntoView({ behavior: 'smooth', block: 'center' });", link)
+                            # Небольшая задержка после прокрутки
+                            stop_event.wait(0.5)
 
-                    # Переключение на iframe
-                    self.switch_to_iframe()
+                            # Клик по ссылке
+                            link.click()
+                            logger.debug(
+                                f"#{self.serial_number}: Link clicked successfully.")
+                            stop_event.wait(2)
+
+                            # Поиск и клик по кнопке запуска
+                            launch_button = self.wait_for_element(
+                                By.CSS_SELECTOR, "button.popup-button.btn.primary.rp", timeout=5)
+                            if launch_button:
+                                logger.debug(
+                                    f"#{self.serial_number}: Launch button found. Clicking it.")
+                                launch_button.click()
+                                logger.debug(
+                                    f"#{self.serial_number}: Launch button clicked.")
+
+                            # Проверка iframe
+                            if self.check_iframe_src():
+                                logger.info(
+                                    f"#{self.serial_number}: App loaded successfully.")
+
+                                # Случайная задержка перед переключением на iframe
+                                sleep_time = random.randint(3, 5)
+                                logger.debug(
+                                    f"#{self.serial_number}: Sleeping for {sleep_time} seconds before switching to iframe.")
+                                stop_event.wait(sleep_time)
+
+                                # Переключение на iframe
+                                self.switch_to_iframe()
+                                logger.debug(
+                                    f"#{self.serial_number}: Switched to iframe successfully.")
+                                return True
+                            else:
+                                logger.warning(
+                                    f"#{self.serial_number}: Iframe did not load expected content.")
+                                raise Exception(
+                                    "Iframe content validation failed.")
+
+                    # Если нужная ссылка не найдена, прокручиваемся к первому элементу
                     logger.debug(
-                        f"#{self.serial_number}: Switched to iframe successfully.")
-                    return True
-                else:
-                    logger.warning(
-                        f"#{self.serial_number}: Iframe did not load expected content.")
-                    raise Exception("Iframe content validation failed.")
+                        f"#{self.serial_number}: Scrolling up (attempt {scroll_attempts + 1}).")
+                    if links:
+                        self.driver.execute_script(
+                            "arguments[0].scrollIntoView({ behavior: 'smooth', block: 'start' });", links[0])
+                    else:
+                        logger.debug(
+                            f"#{self.serial_number}: No links found to scroll to.")
+                        break
+
+                    # Небольшая задержка для загрузки контента
+                    stop_event.wait(0.5)
+                    scroll_attempts += 1
+
+                    # Проверяем позицию страницы
+                    current_position = self.driver.execute_script(
+                        "return window.pageYOffset;")
+                    logger.debug(
+                        f"#{self.serial_number}: Current scroll position: {current_position}")
+                    if current_position == 0:  # Если достигнут верх страницы
+                        logger.debug(
+                            f"#{self.serial_number}: Reached the top of the page.")
+                        break
+
+                # Если не удалось найти ссылку
+                logger.debug(
+                    f"#{self.serial_number}: No matching link found after scrolling through all links.")
+                retries += 1
+                stop_event.wait(5)
 
             except (NoSuchElementException, WebDriverException, TimeoutException) as e:
-                logger.warning(
+                logger.debug(
                     f"#{self.serial_number}: Failed to click link or interact with elements (attempt {retries + 1}): {str(e).splitlines()[0]}")
                 retries += 1
                 stop_event.wait(5)
@@ -372,16 +424,24 @@ class TelegramBotAutomation:
 
     def clear_browser_cache_and_reload(self):
         """
-        Очищает кэш браузера и перезагружает текущую страницу.
+        Очищает кэш браузера, IndexedDB для https://web.telegram.org и перезагружает текущую страницу.
         """
         try:
             logger.debug(
-                f"#{self.serial_number}: Attempting to clear browser cache.")
+                f"#{self.serial_number}: Attempting to clear browser cache and IndexedDB for https://web.telegram.org.")
 
             # Очистка кэша через CDP команду
             self.driver.execute_cdp_cmd("Network.clearBrowserCache", {})
             logger.debug(
                 f"#{self.serial_number}: Browser cache successfully cleared.")
+
+            # Очистка IndexedDB для https://web.telegram.org
+            self.driver.execute_cdp_cmd("Storage.clearDataForOrigin", {
+                "origin": "https://web.telegram.org",
+                "storageTypes": "indexeddb"
+            })
+            logger.debug(
+                f"#{self.serial_number}: IndexedDB successfully cleared for https://web.telegram.org.")
 
             # Перезагрузка текущей страницы
             logger.debug(f"#{self.serial_number}: Refreshing the page.")
