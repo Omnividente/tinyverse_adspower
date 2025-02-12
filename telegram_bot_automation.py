@@ -206,7 +206,7 @@ class TelegramBotAutomation:
 
                 # Находим область ввода сообщения
                 chat_input_area = self.wait_for_element(
-                    By.XPATH, '/html/body/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[2]/input[1]'
+                    By.CSS_SELECTOR, '.input-search-input'
                 )
                 if chat_input_area:
                     logger.debug(
@@ -226,9 +226,8 @@ class TelegramBotAutomation:
                     continue
 
                 # Находим область поиска
-                search_area = self.wait_for_element(
-                    By.XPATH, '/html/body/div[1]/div[1]/div[1]/div[1]/div[1]/div[3]/div[2]/div[2]/div[2]/div[1]/div[1]/div[1]/div[2]/ul[1]/a[1]/div[1]'
-                )
+                selector = "div.search-group.search-group-contacts.is-short div.c-ripple"
+                search_area = self.wait_for_element(By.CSS_SELECTOR, selector)
                 if search_area:
                     logger.debug(f"#{self.serial_number}: Search area found.")
                     search_area.click()
