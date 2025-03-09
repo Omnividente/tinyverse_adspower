@@ -753,52 +753,56 @@ class TelegramBotAutomation:
             logger.debug(f"#{self.serial_number}: Checking progress status.")
             remaining_time = self.get_time()
 
-            if remaining_time == "00:00:00" or int(remaining_time.split(":")[1]) <= 6:
-                logger.info(
-                    f"#{self.serial_number}: Progress >= 90% or completed. Attempting to collect dust.")
-
-                # Поиск кнопки "Собрать пыль"
+            if remaining_time is None:
                 logger.debug(
-                    f"#{self.serial_number}: Searching for 'Collect Dust' button.")
-                progress_blocks = WebDriverWait(self.driver, 10).until(
-                    EC.presence_of_all_elements_located(
-                        (By.CSS_SELECTOR, "a.ui-link.blur"))
-                )
-
-                for block in progress_blocks:
-                    block_text = block.text.strip()
-                    logger.debug(
-                        f"#{self.serial_number}: Found block with text: '{block_text}'")
-
-                    # Условие для определения кнопки "Собрать пыль"
-                    if "Собрать пыль" in block_text or (
-                        "%" in block_text and int(
-                            block_text.replace("%", "").strip()) >= 90
-                    ):
-                        logger.debug(
-                            f"#{self.serial_number}: Clicking 'Collect Dust' button. Found block with text: '{block_text}'")
-
-                        # Попытка обычного клика
-                        try:
-                            block.click()
-                            logger.debug(
-                                f"#{self.serial_number}: Dust collected successfully.")
-                        except Exception as e:
-                            logger.warning(
-                                f"#{self.serial_number}: Click failed with error: {e}. Trying JavaScript.")
-                            self.driver.execute_script(
-                                "arguments[0].click();", block)
-                            logger.debug(
-                                f"#{self.serial_number}: Dust collected using JavaScript.")
-
-                        # Завершаем цикл после успешного клика
-                        break
-                else:
-                    logger.warning(
-                        f"#{self.serial_number}: 'Collect Dust' button not found.")
+                    f"#{self.serial_number}: Remaining time is None, skipping check.")
             else:
-                logger.info(
-                    f"#{self.serial_number}: Progress < 90%. No action taken.")
+                if remaining_time == "00:00:00" or int(remaining_time.split(":")[1]) <= 6:
+                    logger.info(
+                        f"#{self.serial_number}: Progress >= 90% or completed. Attempting to collect dust.")
+
+                    # Поиск кнопки "Собрать пыль"
+                    logger.debug(
+                        f"#{self.serial_number}: Searching for 'Collect Dust' button.")
+                    progress_blocks = WebDriverWait(self.driver, 10).until(
+                        EC.presence_of_all_elements_located(
+                            (By.CSS_SELECTOR, "a.ui-link.blur"))
+                    )
+
+                    for block in progress_blocks:
+                        block_text = block.text.strip()
+                        logger.debug(
+                            f"#{self.serial_number}: Found block with text: '{block_text}'")
+
+                        # Условие для определения кнопки "Собрать пыль"
+                        if "Собрать пыль" in block_text or (
+                            "%" in block_text and int(
+                                block_text.replace("%", "").strip()) >= 90
+                        ):
+                            logger.debug(
+                                f"#{self.serial_number}: Clicking 'Collect Dust' button. Found block with text: '{block_text}'")
+
+                            # Попытка обычного клика
+                            try:
+                                block.click()
+                                logger.debug(
+                                    f"#{self.serial_number}: Dust collected successfully.")
+                            except Exception as e:
+                                logger.warning(
+                                    f"#{self.serial_number}: Click failed with error: {e}. Trying JavaScript.")
+                                self.driver.execute_script(
+                                    "arguments[0].click();", block)
+                                logger.debug(
+                                    f"#{self.serial_number}: Dust collected using JavaScript.")
+
+                            # Завершаем цикл после успешного клика
+                            break
+                    else:
+                        logger.warning(
+                            f"#{self.serial_number}: 'Collect Dust' button not found.")
+                else:
+                    logger.info(
+                        f"#{self.serial_number}: Progress < 90%. No action taken.")
 
         except Exception as e:
             logger.error(
