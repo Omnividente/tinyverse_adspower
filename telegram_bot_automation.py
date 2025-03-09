@@ -628,16 +628,19 @@ class TelegramBotAutomation:
 
             # Извлечение данных из блока ресурсов
             logger.debug(
-                f"#{self.serial_number}: Extracting star balance from resources row.")
-            balance_text = resources_row.find_element(
+                f"#{self.serial_number}: Extracting updated star balance from resources row.")
+
+            balance_element = resources_row.find_element(
                 By.XPATH,
-                ".//b/span[contains(text(), 'Звезд') or contains(text(), 'Stars')]/preceding-sibling::span[1]"
-            ).text.strip()
+                ".//label[i[contains(text(), 'Ресурсы')]]//b//span[contains(@class,'align-items-center')][2]/span"
+            )
+
+            balance_text = balance_element.text.strip()
 
             logger.debug(
                 f"#{self.serial_number}: Found star balance text: '{balance_text}'")
 
-            # Парсинг числового значения
+            # Парсинг числового значения (убираем запятую)
             balance = int(balance_text.replace(",", "")) if balance_text else 0
             logger.debug(
                 f"#{self.serial_number}: Extracted star balance: {balance}")
@@ -653,6 +656,7 @@ class TelegramBotAutomation:
 
             return balance
         except Exception as e:
+            stop_event.wait(10)
             logger.error(
                 f"#{self.serial_number}: Error retrieving balance: {str(e)}")
             return 0
@@ -1087,6 +1091,218 @@ class TelegramBotAutomation:
 
             logger.info(
                 f"#{self.serial_number}: Returning home after quest creation.")
+            self.preparing_account()
+
+        except Exception as e:
+            logger.error(
+                f"#{self.serial_number}: Error in 'Quests' process: {str(e)}")
+
+    def create_quests2(self):
+        """
+        Выполняет процесс создания одноразового квеста.
+        После входа в окно поиска запускается JavaScript, который кликает по пустому progress‑бару,
+        имитируя клики до заполнения, затем по заполнённому progress‑бару.
+        После завершения квеста отмечается его выполнение в таблице (больше в него заходить не надо).
+        """
+        try:
+            logger.info(
+                f"#{self.serial_number}: Starting one-time 'Quests' process.")
+
+            # (Если необходимо, обновляем данные квеста – для одноразового квеста больше лимит не нужен)
+            # Например, можно проверить, выполнен ли квест уже:
+            # if self.is_quest_completed():
+            #     logger.info(
+            #         f"#{self.serial_number}: Quest already completed. Exiting.")
+            #     return
+
+            # Переходим в окно поиска: жмем на кнопку в #ui-top-left
+            top_left_button = WebDriverWait(self.driver, 5).until(
+                EC.element_to_be_clickable(
+                    (By.CSS_SELECTOR, "div#ui-top-left a.ui-link.blur svg"))
+            )
+            top_left_button.click()
+            logger.debug(
+                f"#{self.serial_number}: Clicked top-left search button.")
+            time.sleep(2)  # Ждём, чтобы окно поиска полностью открылось
+
+            # Асинхронно запускаем наш JavaScript, который выполняет клики по progress‑бару
+            # и завершает работу, когда квест выполнен.
+            # Скрипт завершается вызовом arguments[0]("done").
+            js_code = r"""
+                        (function() {
+            let startTime = Date.now();
+            let filledCount = 0; // Количество кликов по заполнённому progress‑бару
+            const maxFilled = 10; // Остановиться после 10 кликов
+            const maxDuration = 15 * 60 * 1000; // 15 минут в миллисекундах
+            let stopScript = false;
+
+            window.addEventListener("keydown", function(e) {
+                if (e.key.toLowerCase() === "m") {
+                stopScript = true;
+                console.log("Скрипт остановлен по нажатию клавиши 'm'.");
+                }
+            });
+
+            function showClickIndicator(x, y) {
+                if (stopScript) return;
+                const indicator = document.createElement("div");
+                indicator.style.position = "absolute";
+                indicator.style.left = `${x - 10}px`;
+                indicator.style.top = `${y - 10}px`;
+                indicator.style.width = "20px";
+                indicator.style.height = "20px";
+                indicator.style.border = "2px solid red";
+                indicator.style.borderRadius = "50%";
+                indicator.style.pointerEvents = "none";
+                indicator.style.zIndex = 9999;
+                indicator.style.transition = "opacity 0.5s ease-out";
+                document.body.appendChild(indicator);
+                setTimeout(() => {
+                indicator.style.opacity = "0";
+                setTimeout(() => indicator.remove(), 500);
+                }, 100);
+            }
+
+            function clickWithDeviation() {
+                if (stopScript) return;
+                const app = document.getElementById("app");
+                if (!app) return;
+                const rect = app.getBoundingClientRect();
+                const centerX = rect.left + rect.width / 2;
+                const centerY = rect.top + rect.height / 2;
+                const deviationX = (Math.random() * 40) - 20;
+                const deviationY = (Math.random() * 40) - 20;
+                const x = centerX + deviationX;
+                const y = centerY + deviationY;
+                const target = document.elementFromPoint(x, y);
+                console.log("Клик по координатам:", x.toFixed(2), y.toFixed(2), "Целевой элемент:", target);
+                if (target) {
+                const opts = { bubbles: true, cancelable: true, clientX: x, clientY: y };
+                target.dispatchEvent(new MouseEvent("mousedown", opts));
+                target.dispatchEvent(new MouseEvent("mouseup", opts));
+                target.dispatchEvent(new MouseEvent("click", opts));
+                }
+                showClickIndicator(x, y);
+            }
+
+            function heartbeat() {
+                if (stopScript) return;
+                clickWithDeviation();
+                setTimeout(() => { if (!stopScript) clickWithDeviation(); }, 400);
+            }
+
+            function isProgressFilled() {
+                if (stopScript) return false;
+                const anchor = document.querySelector("#ui-bottom a.ui-link.blur");
+                if (!anchor) {
+                console.log("Элемент progress‑бара не найден в #ui-bottom.");
+                return false;
+                }
+                if (anchor.classList.contains("disabled") || anchor.querySelector(".progress-bar-container")) {
+                console.log("Progress‑бар пустой (есть disabled или .progress-bar-container).");
+                return false;
+                }
+                const path2 = anchor.querySelector("svg path:nth-of-type(2)");
+                if (path2 && path2.getAttribute("fill") === "currentColor") {
+                console.log("Progress‑бар заполнен.");
+                return true;
+                }
+                console.log("Progress‑бар не заполнен (нет второго path с fill='currentColor').");
+                return false;
+            }
+
+            function clickFilledProgressBar() {
+                if (stopScript) return;
+                const anchor = document.querySelector("#ui-bottom a.ui-link.blur");
+                if (anchor && isProgressFilled()) {
+                console.log("Кликаем по заполнённому progress‑бару:", anchor);
+                anchor.click();
+                }
+            }
+
+            function waitForReset(callback) {
+                if (stopScript) return;
+                const interval = setInterval(() => {
+                if (stopScript) { clearInterval(interval); return; }
+                if (!isProgressFilled()) {
+                    clearInterval(interval);
+                    console.log("Progress‑бар сбросился, продолжаем цикл.");
+                    callback();
+                }
+                }, 500);
+            }
+
+            function clickSearchButton() {
+                if (stopScript) return;
+                const btn = document.querySelector("#ui-top-left a.ui-link.blur");
+                if (btn) {
+                console.log("Нажимаем кнопку поиска (#ui-top‑left).");
+                btn.click();
+                } else {
+                console.log("Кнопка поиска не найдена.");
+                }
+            }
+
+            function monitorProgress(callback) {
+                if (stopScript) return;
+                // Проверяем таймаут выполнения:
+                if (Date.now() - startTime > maxDuration) {
+                console.log("Достигнут лимит по времени. Завершаем скрипт.");
+                callback("timeout");
+                return;
+                }
+                if (isProgressFilled()) {
+                callback();
+                } else {
+                heartbeat();
+                setTimeout(() => { monitorProgress(callback); }, 1200);
+                }
+            }
+
+            function mainLoop() {
+                if (stopScript) { console.log("Скрипт остановлен."); return; }
+                if (filledCount >= maxFilled) {
+                console.log("Выполнено 10 заполнённых progress‑баров. Цикл завершён.");
+                arguments[0]("done");
+                return;
+                }
+                const container = document.querySelector(".progress-bar-container");
+                if (!container) {
+                clickSearchButton();
+                setTimeout(mainLoop, 3000);
+                return;
+                }
+                monitorProgress((result) => {
+                if (result === "timeout") {
+                    arguments[0]("timeout");
+                    return;
+                }
+                clickFilledProgressBar();
+                filledCount++;
+                console.log("Заполнённых progress‑баров:", filledCount);
+                // Пауза 5 секунд после клика по заполнённому progress‑бару
+                setTimeout(mainLoop, 5000);
+                });
+            }
+            mainLoop(arguments[0]);
+            })();
+
+
+            """
+            # Запускаем асинхронный скрипт (ожидаем, пока он вызовет callback)
+            # установит таймаут в 15 минут
+            self.driver.set_script_timeout(15*60)
+            try:
+                logger.info(f"Starting JS execution for quests.")
+                result = self.driver.execute_async_script(js_code)
+                logger.info(f"JS script finished with result: {result}")
+            except Exception as e:
+                logger.error(f"JS execution failed: {e}")
+            logger.info(
+                f"#{self.serial_number}: Quest JS finished with result: {result}")
+            # Отмечаем квест как выполненный (однократно, без сброса через сутки)
+            # self.mark_quest_completed()
+            logger.info(f"#{self.serial_number}: Quest marked as completed.")
             self.preparing_account()
 
         except Exception as e:
